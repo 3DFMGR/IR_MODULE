@@ -1,6 +1,6 @@
 /* Αποθηκεύει την εφαρμογή στο κινητό ώστε να δουλεύει χωρίς σήμα.
    Όταν αλλάζετε κάτι, ανεβάστε την έκδοση (VERSION) για να ενημερωθούν τα κινητά. */
-const VERSION='deltio-v4';
+const VERSION='deltio-v5';
 const FILES=[
   './',
   'fonts.css',
@@ -23,7 +23,7 @@ const FILES=[
   'manifest.webmanifest',
 ];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(VERSION).then(c=>c.addAll(FILES)).then(()=>self.skipWaiting()))});
-self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==VERSION).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
+self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k.startsWith('deltio-v')&&k!==VERSION).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
 self.addEventListener('fetch',e=>{
   if(e.request.method!=='GET')return;
   const isPage=e.request.mode==='navigate';
