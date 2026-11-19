@@ -559,7 +559,7 @@ $('make').onclick=async()=>{
   try{
     lastPdf=await makePdf(d);
     const safe=s=>s.replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,'_').slice(0,40);
-    lastName='Deltio_DE_'+grDate(d.date).replace(/\//g,'-')+'_'+safe(d.client)+'.pdf';
+    lastName=['IR','MODULE',safe(d.client),safe(d.tech),grDate(d.date).replace(/\//g,'-')].filter(Boolean).join('_')+'.pdf';
     $('eto').value=d.email;
     $('esub').value='Δελτίο Εργασιών ΔΕ '+grDate(d.date)+' – '+d.client;
     $('ebody').value='Καλησπέρα σας,\n\nσας αποστέλλουμε συνημμένο το Δελτίο Εργασιών ΔΕ '+grDate(d.date)+
