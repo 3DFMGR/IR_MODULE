@@ -475,7 +475,7 @@ function timeField(label,val){const [w,i]=field(label,'text','',{value:val||'',i
 const hhmm=m=>Math.floor(m/60)+':'+String(m%60).padStart(2,'0');
 function taskCalc(r){const m=mins(r.t1.value,r.t2.value);if(m===null)return null;const n=Math.max(1,parseInt(r.n.value,10)||1);return {m,n,tot:m*n}}
 const tasks=[],mats=[];
-function updTotals(){let sum=0;tasks.forEach(r=>{const c=taskCalc(r);r.out.textContent=c?('Ώρες παρουσίας: '+hhmm(c.m)+(c.n>1?' × '+c.n+' άτομα = '+hhmm(c.tot):'')):'Ώρες παρουσίας: —';if(c)sum+=c.tot});
+function updTotals(){let sum=0;tasks.forEach(r=>{const c=taskCalc(r);r.out.textContent=c?('Ώρες παρουσίας: '+hhmm(c.m)):'Ώρες παρουσίας: —';if(c)sum+=c.m});
   $('taskTotal').textContent=sum?'Σύνολο ωρών παρουσίας: '+hhmm(sum):''}
 function addTask(pre){
   const el=document.createElement('div');el.className='line task';
@@ -612,11 +612,11 @@ function cbGrid(list,flags,others){
   return h+'</table>'}
 function buildSheet(d){
   const c=company,lg=c.logo?'<img src="'+c.logo+'" alt="">':'<span class="ini" style="color:'+c.color+'">'+esc(c.name)+'</span>';
-  const tRows=d.tasks.map(r=>'<tr><td>'+grDate(r.d)+'</td><td>'+esc(r.n)+'</td><td>'+esc(r.t1)+'</td><td>'+esc(r.t2)+'</td><td>'+(r.c?hhmm(r.c.tot):'')+'</td></tr>');
+  const tRows=d.tasks.map(r=>'<tr><td>'+grDate(r.d)+'</td><td>'+esc(r.n)+'</td><td>'+esc(r.t1)+'</td><td>'+esc(r.t2)+'</td><td>'+(r.c?hhmm(r.c.m):'')+'</td></tr>');
   while(tRows.length<3)tRows.push('<tr><td></td><td></td><td></td><td></td><td></td></tr>');
   const mRows=d.mats.map(r=>'<tr><td class="l">'+esc(r.m)+'</td><td>'+esc(r.c)+'</td><td>'+esc(r.q+(r.u&&r.q&&/^[\d.,\s]+$/.test(r.q)?' '+r.u:''))+'</td></tr>');
   while(mRows.length<4)mRows.push('<tr><td></td><td></td><td></td></tr>');
-  const hSum=d.tasks.reduce((a,r)=>a+(r.c?r.c.tot:0),0);
+  const hSum=d.tasks.reduce((a,r)=>a+(r.c?r.c.m:0),0);
   if(hSum)tRows.push('<tr><td colspan="4" style="text-align:right;font-weight:700">ΣΥΝΟΛΟ ΩΡΩΝ ΠΑΡΟΥΣΙΑΣ / TOTAL HOURS</td><td style="font-weight:700">'+hhmm(hSum)+'</td></tr>');
   $('sheet').innerHTML=
    '<div class="top"><div class="lg">'+lg+'</div><div class="tt"><b>ΔΕΛΤΙΟ ΕΡΓΑΣΙΩΝ</b><span>ΔΕ '+grDate(d.vdate)+'</span></div></div>'+
