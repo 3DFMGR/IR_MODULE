@@ -101,6 +101,8 @@ input.sel{cursor:pointer;padding-right:38px;text-overflow:ellipsis;background-re
 .sugg button{display:block;width:100%;text-align:left;background:transparent;color:var(--tx);border:0;border-radius:7px;padding:11px 12px;font-weight:500;white-space:normal;overflow-wrap:anywhere;line-height:1.35}
 .sugg button+button{border-top:1px solid var(--bd);border-radius:0}
 .savebtns{display:grid;gap:10px}
+#pv{background:#fff;border:1px solid var(--bd);border-radius:12px;overflow:hidden;position:relative}
+#pv #sheet{position:absolute;left:0;top:0;transform-origin:0 0}
 .pbtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}.pbtns button{justify-content:center}
 .plist{flex:1;overflow:auto;display:flex;flex-direction:column;gap:6px;min-height:0}
 .plist button{display:block;flex:none;width:100%;text-align:left;background:var(--field);color:var(--tx);border:1px solid var(--bd);padding:12px 14px;font-weight:500;white-space:normal;overflow-wrap:anywhere;line-height:1.35;min-height:46px}
@@ -161,7 +163,7 @@ input.sel{cursor:pointer;padding-right:38px;text-overflow:ellipsis;background-re
 </style>
 
 
-<div class="wrap">
+<div class="wrap" id="formwrap">
   <div class="head"><div id="hlogo"></div><h1>Δελτίο Εργασιών</h1></div>
   <div class="chip"><span id="co"></span></div>
 
@@ -266,7 +268,10 @@ input.sel{cursor:pointer;padding-right:38px;text-overflow:ellipsis;background-re
       <button id="save" type="button">Αποθήκευση στη συσκευή</button>
       <div class="hint" id="saveinfo"></div>
       <button id="share" class="sec" type="button">Αποστολή (Email, Viber κ.λπ.)</button>
-      <div class="hint">Ανοίγει το μενού κοινοποίησης με το PDF ήδη συνημμένο.</div>
+      <div class="hint">Ανοίγει το μενού κοινοποίησης με το PDF ήδη συνημμένο. Δεν χρειάζεται να το αποθηκεύσεις πρώτα.</div>
+      <button id="linkb" class="sec" type="button">Αντιγραφή link δελτίου</button>
+      <div class="hint" id="linkinfo">Όποιος ανοίξει το link βλέπει το δελτίο και κατεβάζει το PDF.</div>
+      <textarea id="linkbox" readonly hidden style="min-height:70px;font-size:12px"></textarea>
     </div>
     <label for="eto">Προς</label>
     <div class="copyrow"><input id="eto" readonly><button class="sec" type="button" data-copy="eto">Αντιγραφή</button></div>
@@ -284,6 +289,21 @@ input.sel{cursor:pointer;padding-right:38px;text-overflow:ellipsis;background-re
       <button class="sec" id="no2" type="button">Άκυρο</button>
     </div>
   </div>
+</div>
+
+<div class="wrap" id="viewer" hidden>
+  <div class="head"><div id="vlogo"></div><h1>Δελτίο Εργασιών</h1></div>
+  <div class="card">
+    <h2 id="vtitle">ΔΕΛΤΙΟ ΕΡΓΑΣΙΩΝ</h2>
+    <div class="hint" id="vsub"></div>
+    <div class="savebtns" style="margin-top:8px">
+      <button id="vsave" type="button" disabled>Λήψη PDF</button>
+      <button id="vshare" class="sec" type="button" disabled>Αποστολή PDF (Email, Viber κ.λπ.)</button>
+    </div>
+    <div class="msg" id="vmsg" role="status"></div>
+  </div>
+  <div id="pv" aria-label="Προεπισκόπηση δελτίου"></div>
+  <div class="actions"><button class="sec" id="vnew" type="button">Νέο κενό δελτίο</button></div>
 </div>
 
 <div id="pmodal" class="pm" role="dialog" aria-modal="true" aria-labelledby="pmt" hidden><div class="box">
@@ -676,6 +696,14 @@ function collect(){
   d.simple=$('simple').checked;d.sigC=padC.img();d.sigT=padT.img();return d}
 
 let lastPdf=null,lastName='';
+function finishOut(d){
+const safe=s=>s.replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,'_').slice(0,40);
+  lastName=['IR','MODULE',safe(d.client),safe(d.tech),grDate(d.vdate).replace(/\//g,'-')].filter(Boolean).join('_')+'.pdf';
+  $('eto').value=d.email;
+  $('esub').value='Δελτίο Εργασιών ΔΕ '+grDate(d.vdate)+' – '+d.client;
+  $('ebody').value='Καλησπέρα σας,\n\nσας αποστέλλουμε συνημμένο το Δελτίο Εργασιών ΔΕ '+grDate(d.vdate)+
+    (d.addr?' για τις εργασίες στο '+d.addr:'')+'.\n\nΜε εκτίμηση,\n'+company.name;
+}
 $('make').onclick=async()=>{
   const d=collect();
   if(!d.date){say('Συμπλήρωσε σωστά την ημερομηνία (ηη/μμ/εεεε).','err');$('date_t').scrollIntoView({block:'center'});$('date_t').classList.add('bad');return}
@@ -686,13 +714,8 @@ $('make').onclick=async()=>{
   $('make').disabled=true;say('Δημιουργία PDF…');
   try{
     lastPdf=await makePdf(d);
-    const safe=s=>s.replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,'_').slice(0,40);
-    lastName=['IR','MODULE',safe(d.client),safe(d.tech),grDate(d.vdate).replace(/\//g,'-')].filter(Boolean).join('_')+'.pdf';
-    $('eto').value=d.email;
-    $('esub').value='Δελτίο Εργασιών ΔΕ '+grDate(d.vdate)+' – '+d.client;
-    $('ebody').value='Καλησπέρα σας,\n\nσας αποστέλλουμε συνημμένο το Δελτίο Εργασιών ΔΕ '+grDate(d.vdate)+
-      (d.addr?' για τις εργασίες στο '+d.addr:'')+'.\n\nΜε εκτίμηση,\n'+company.name;
-    $('done').hidden=false;say('✓ Το PDF δημιουργήθηκε ('+Math.round(lastPdf.size/1024)+' KB).','ok');
+    finishOut(d);
+    $('done').hidden=false;prepLink(d);say('✓ Το PDF δημιουργήθηκε ('+Math.round(lastPdf.size/1024)+' KB).','ok');
     $('done').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});
   }catch(e){say('Δεν δημιουργήθηκε το PDF. Δοκίμασε με λιγότερες φωτογραφίες.','err')}
   finally{$('make').disabled=false}
@@ -748,6 +771,48 @@ $('yes').onclick=()=>{ids.forEach(i=>$(i).value='');$('date').value=today();
 
 fillClients();onClient();
 pick(COMPANIES[0]);
+
+/* ===== link δελτίου: όλα τα στοιχεία μέσα στο link (χωρίς φωτογραφίες) ===== */
+const b64u=u8=>{let s='';for(let i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')};
+const ub64=t=>{t=t.replace(/-/g,'+').replace(/_/g,'/');const s=atob(t);const u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return u};
+async function zip(u8,mode){const cs=mode?new DecompressionStream('deflate-raw'):new CompressionStream('deflate-raw');const st=new Blob([u8]).stream().pipeThrough(cs);return new Uint8Array(await new Response(st).arrayBuffer())}
+function smallSig(src){return new Promise(res=>{if(!src)return res('');const im=new Image();im.onload=()=>{const k=Math.min(1,360/im.width),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);let u=c.toDataURL('image/webp',.5);if(!u.startsWith('data:image/webp'))u=c.toDataURL('image/jpeg',.5);res(u)};im.onerror=()=>res('');im.src=src})}
+let linkUrl='',linkJob=null;
+function prepLink(d){linkUrl='';$('linkbox').hidden=true;$('linkb').textContent='Αντιγραφή link δελτίου';
+  linkJob=(async()=>{const x=Object.assign({},d,{v:1,co:company.name});x.sigC=await smallSig(d.sigC);x.sigT=await smallSig(d.sigT);
+    const raw=new TextEncoder().encode(JSON.stringify(x));let t;
+    try{t='z'+b64u(await zip(raw,0))}catch(_){t='j'+b64u(raw)}
+    linkUrl=location.origin+location.pathname+'#r='+t;
+    $('linkinfo').textContent='Όποιος ανοίξει το link βλέπει το δελτίο και κατεβάζει το PDF.'+(photos.length?' Οι φωτογραφίες δεν περιλαμβάνονται στο link· στείλ’ τες με το PDF.':'');
+    return linkUrl})();}
+$('linkb').onclick=async()=>{const u=linkUrl||await linkJob;if(!u)return;
+  try{await navigator.clipboard.writeText(u);$('linkb').textContent='✓ Το link αντιγράφηκε';say('✓ Το link αντιγράφηκε. Επικόλλησέ το σε Viber, WhatsApp, email κ.λπ.','ok');setTimeout(()=>$('linkb').textContent='Αντιγραφή link δελτίου',2500)}
+  catch(_){const b=$('linkbox');b.value=u;b.hidden=false;b.focus();b.select();say('Κράτησε πατημένο το link παρακάτω και διάλεξε «Αντιγραφή».','')}};
+
+async function openViewer(t){
+  $('formwrap').hidden=true;$('viewer').hidden=false;
+  const vs=(m,k)=>{$('vmsg').textContent=m;$('vmsg').className='msg'+(k?' '+k:'')};
+  let d;
+  try{const raw=t[0]==='z'?await zip(ub64(t.slice(1)),1):ub64(t.slice(1));d=JSON.parse(new TextDecoder().decode(raw))}
+  catch(_){vs('Το link δεν είναι πλήρες. Ζήτησε να σου το ξαναστείλουν (ίσως κόπηκε στην αντιγραφή).','err');return}
+  const c=COMPANIES.find(x=>x.name===d.co);if(c)company=c;
+  const lg=$('vlogo');if(lg&&company&&company.logo){const im=document.createElement('img');im.src=company.logo;im.alt=company.name;im.style.maxHeight='40px';lg.append(im)}
+  $('vtitle').textContent='ΔΕ '+grDate(d.vdate)+' – '+(d.client||'');
+  $('vsub').textContent=[company&&company.name,d.addr,d.tech&&('Τεχνικός: '+d.tech)].filter(Boolean).join(' · ');
+  document.title='ΔΕ '+grDate(d.vdate)+' – '+(d.client||'');
+  photos.length=0;vs('Δημιουργία PDF…');
+  try{
+    if(!window.jspdf||!window.html2canvas)throw 0;
+    lastPdf=await makePdf(d);finishOut(d);
+    const pv=$('pv'),sh=$('sheet');pv.append(sh);
+    const fit=()=>{const k=pv.clientWidth/794;sh.style.transform='scale('+k+')';pv.style.height=Math.ceil(sh.offsetHeight*k)+'px'};fit();addEventListener('resize',fit);
+    $('vsave').disabled=false;$('vshare').disabled=false;vs('');
+  }catch(_){vs('Δεν δημιουργήθηκε το PDF. Άνοιξε ξανά το link.','err')}
+  $('vsave').onclick=()=>{$('msg').id='msg_';$('vmsg').id='msg';$('save').onclick().finally(()=>{$('msg').id='vmsg';$('msg_').id='msg'})};
+  $('vshare').onclick=()=>{$('msg').id='msg_';$('vmsg').id='msg';$('share').onclick().finally(()=>{$('msg').id='vmsg';$('msg_').id='msg'})};
+}
+$('vnew').onclick=()=>{location.href=location.pathname};
+{const h=location.hash.match(/^#r=(.+)$/);if(h)openViewer(h[1])}
 
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 </script>
