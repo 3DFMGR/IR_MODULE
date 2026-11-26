@@ -172,7 +172,6 @@ input.sel{cursor:pointer;padding-right:38px;text-overflow:ellipsis;background-re
     <label for="date">Ημερομηνία</label><input id="date" type="date">
     <label for="client">Πελάτης *</label><input id="client" placeholder="Γράψε ή πάτα ▾ για λίστα">
     <label for="addr">Διεύθυνση / Χώρος εργασίας</label><input id="addr" placeholder="Γράψε ή πάτα ▾ για λίστα"><div class="hint" id="ahint"></div>
-    <label for="email">Email πελάτη</label><input id="email" type="email" inputmode="email" placeholder="π.χ. info@pelatis.gr">
     <label for="fm">Υπεύθυνος συντήρησης / Facility manager</label><input id="fm" autocomplete="off">
     <label for="tech">Τεχνικός / Technician</label><input id="tech" placeholder="Γράψε ή πάτα ▾ για λίστα">
   </div>
@@ -273,8 +272,6 @@ input.sel{cursor:pointer;padding-right:38px;text-overflow:ellipsis;background-re
       <div class="hint" id="linkinfo">Όποιος ανοίξει το link βλέπει το δελτίο και κατεβάζει το PDF.</div>
       <textarea id="linkbox" readonly hidden style="min-height:70px;font-size:12px"></textarea>
     </div>
-    <label for="eto">Προς</label>
-    <div class="copyrow"><input id="eto" readonly><button class="sec" type="button" data-copy="eto">Αντιγραφή</button></div>
     <label for="esub">Θέμα</label>
     <div class="copyrow"><input id="esub" readonly><button class="sec" type="button" data-copy="esub">Αντιγραφή</button></div>
     <label for="ebody">Κείμενο email</label>
@@ -330,7 +327,7 @@ const CRIT=['Θερμές εργασίες (κοπή, συγκόλληση, τρ
 const $=id=>document.getElementById(id);
 const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const ids=['date','client','addr','email','fm','tech','desc','notes','ppe_o1','ppe_o2','crit_o','signer'];
+const ids=['date','client','addr','fm','tech','desc','notes','ppe_o1','ppe_o2','crit_o','signer'];
 const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 const grDate=s=>s?s.split('-').reverse().join('/'):'';
 /* Ημερομηνίες πάντα ηη/μμ/εεεε, ανεξάρτητα από τη γλώσσα του κινητού.
@@ -699,7 +696,6 @@ let lastPdf=null,lastName='';
 function finishOut(d){
 const safe=s=>s.replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,'_').slice(0,40);
   lastName=['IR','MODULE',safe(d.client),safe(d.tech),grDate(d.vdate).replace(/\//g,'-')].filter(Boolean).join('_')+'.pdf';
-  $('eto').value=d.email;
   $('esub').value='Δελτίο Εργασιών ΔΕ '+grDate(d.vdate)+' – '+d.client;
   $('ebody').value='Καλησπέρα σας,\n\nσας αποστέλλουμε συνημμένο το Δελτίο Εργασιών ΔΕ '+grDate(d.vdate)+
     (d.addr?' για τις εργασίες στο '+d.addr:'')+'.\n\nΜε εκτίμηση,\n'+company.name;
