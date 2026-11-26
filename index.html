@@ -62,6 +62,8 @@ button:disabled{opacity:.5;cursor:default}
 .line .wide{grid-column:1/-1}
 .line .foot{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:10px}
 .line .foot b{font-variant-numeric:tabular-nums;font-size:14px}
+.line input.tm{font-variant-numeric:tabular-nums}.line input.bad{border-color:var(--err)}
+.line .combo .sugg{right:56px}
 .line .rm{padding:6px 10px;font-size:13px;background:transparent;color:var(--err);border:1px solid var(--err);font-weight:500}
 /* υπογραφές */
 canvas.sig{width:100%;height:160px;background:#fff;border:1px dashed var(--bd);border-radius:9px;touch-action:none;display:block;margin-top:6px}
@@ -149,7 +151,7 @@ input.sel{cursor:pointer;padding-right:38px;text-overflow:ellipsis;background-re
 #sheet .who td span{font-weight:400}
 #sheet .grid th{background:#f2f2f2;font-weight:600;font-size:10.5px;text-align:center}
 #sheet .grid td{height:21px;white-space:nowrap;text-align:center;font-variant-numeric:tabular-nums}
-#sheet .grid td.l{text-align:left}
+#sheet .grid td.l{text-align:left;white-space:normal}
 #sheet .sign{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:16px}
 #sheet .sign .ar{height:82px;display:flex;align-items:flex-end;justify-content:center}
 #sheet .sign .ar img{max-height:82px;max-width:100%}
@@ -431,7 +433,7 @@ function openPick(id){hideSugg(id);pf=id;$('pmt').textContent=PICK[id].title;$('
   const c=$('ppick').querySelector('.cur');if(c)c.scrollIntoView({block:'center'})}
 function closePick(){$('pmodal').hidden=true;document.body.style.overflow='';pf=null}
 
-['client','addr','tech'].forEach(id=>{
+function makeCombo(id){
   const el=$(id),wrap=document.createElement('div'),btn=document.createElement('button'),sg=document.createElement('div');
   wrap.className='combo';btn.type='button';btn.className='cbtn';btn.innerHTML=CHEV;btn.setAttribute('aria-label','Λίστα: '+PICK[id].title);
   sg.className='sugg';sg.id=id+'_s';sg.hidden=true;
@@ -444,7 +446,8 @@ function closePick(){$('pmodal').hidden=true;document.body.style.overflow='';pf=
   el.addEventListener('keydown',e=>{if(e.key==='ArrowDown'&&e.altKey){e.preventDefault();openPick(id)}
     if(e.key==='Escape')hideSugg(id);
     if(e.key==='Enter'){const f=$(id+'_s').querySelector('button');if(!$(id+'_s').hidden&&f){e.preventDefault();f.click()}else hideSugg(id)}});
-});
+}
+['client','addr','tech'].forEach(makeCombo);
 $('psearch').addEventListener('input',drawPick);
 $('psearch').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();const f=$('ppick').querySelector('button');if(f)f.click()}});
 $('pclose').onclick=closePick;
@@ -457,34 +460,53 @@ let seq=0;
 function field(label,type,cls,extra){const w=document.createElement('div');w.className='f'+(cls?' '+cls:'');
   const s=document.createElement('label');s.textContent=label;const i=document.createElement('input');i.type=type;i.id='f'+(++seq);s.htmlFor=i.id;
   Object.assign(i,extra||{});w.append(s,i);if(type==='date')euroDate(i);return [w,i]}
-const mins=(a,b)=>{if(!a||!b)return null;let m=(+b.slice(0,2)*60+ +b.slice(3))-(+a.slice(0,2)*60+ +a.slice(3));if(m<0)m+=1440;return m};
+/* ώρα 24ωρη: δέχεται 9:30, 0930, 930, 9 → 09:30 / 09:00 */
+function parseT(v){v=String(v||'').trim();let h,m;let x=/^(\d{1,2})[:.](\d{1,2})$/.exec(v);
+  if(x){h=+x[1];m=+x[2]}else if(/^\d{1,4}$/.test(v)){if(v.length<=2){h=+v;m=0}else{h=+v.slice(0,v.length-2);m=+v.slice(-2)}}else return '';
+  return h<24&&m<60?String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'):''}
+const mins=(a,b)=>{a=parseT(a);b=parseT(b);if(!a||!b)return null;let m=(+b.slice(0,2)*60+ +b.slice(3))-(+a.slice(0,2)*60+ +a.slice(3));if(m<0)m+=1440;return m};
+function timeField(label,val){const [w,i]=field(label,'text','',{value:val||'',inputMode:'numeric',placeholder:'ωω:λλ',maxLength:5,autocomplete:'off'});
+  i.classList.add('tm');
+  i.addEventListener('input',e=>{if(e.inputType&&!e.inputType.startsWith('insert'))return;const d=i.value.replace(/\D/g,'').slice(0,4);
+    i.value=d.length===4?d.slice(0,2)+':'+d.slice(2):(d.length===3&&+d.slice(0,2)>23?d[0]+':'+d.slice(1):d);
+    i.classList.toggle('bad',i.value.length>=4&&!parseT(i.value))});
+  i.addEventListener('blur',()=>{const t=parseT(i.value);if(t)i.value=t;i.classList.toggle('bad',!!i.value&&!t);updTotals()});
+  return [w,i]}
 const hhmm=m=>Math.floor(m/60)+':'+String(m%60).padStart(2,'0');
 function taskCalc(r){const m=mins(r.t1.value,r.t2.value);if(m===null)return null;const n=Math.max(1,parseInt(r.n.value,10)||1);return {m,n,tot:m*n}}
 const tasks=[],mats=[];
-function updTotals(){let sum=0;tasks.forEach(r=>{const c=taskCalc(r);r.out.textContent=c?('Σύνολο: '+hhmm(c.m)+(c.n>1?' × '+c.n+' = '+hhmm(c.tot):'')+' ώρες'):'Σύνολο: —';if(c)sum+=c.tot});
-  $('taskTotal').textContent=sum?'Σύνολο ωρών όλων των ημερών: '+hhmm(sum):''}
+function updTotals(){let sum=0;tasks.forEach(r=>{const c=taskCalc(r);r.out.textContent=c?('Ώρες παρουσίας: '+hhmm(c.m)+(c.n>1?' × '+c.n+' άτομα = '+hhmm(c.tot):'')):'Ώρες παρουσίας: —';if(c)sum+=c.tot});
+  $('taskTotal').textContent=sum?'Σύνολο ωρών παρουσίας: '+hhmm(sum):''}
 function addTask(pre){
   const el=document.createElement('div');el.className='line task';
   const [w1,d]=field('Ημερομηνία','date','wide',{value:pre?.d||$('date').value||today()});
   const [w2,n]=field('Αρ. προσωπικού','number','wide',{min:1,inputMode:'numeric',value:pre?.n||'1'});
-  const [w3,t1]=field('Ώρα έναρξης','time','',{value:pre?.t1||''});
-  const [w4,t2]=field('Ώρα λήξης','time','',{value:pre?.t2||''});
+  const [w3,t1]=timeField('Ώρα έναρξης (24ωρη)',pre?.t1);
+  const [w4,t2]=timeField('Ώρα λήξης (24ωρη)',pre?.t2);
   const foot=document.createElement('div');foot.className='foot';const out=document.createElement('b');
   const rm=document.createElement('button');rm.type='button';rm.className='rm';rm.textContent='Αφαίρεση';
   foot.append(out,rm);el.append(w1,w2,w3,w4,foot);$('tasks').append(el);
-  const r={el,d,n,t1,t2,out};tasks.push(r);
+  const r={el,d,n,t1,t2,out,touched:!!pre?.d};tasks.push(r);
+  d.addEventListener('input',()=>{r.touched=true});d.addEventListener('change',()=>{r.touched=true});
   [n,t1,t2].forEach(i=>i.addEventListener('input',updTotals));
   rm.onclick=()=>{el.remove();tasks.splice(tasks.indexOf(r),1);updTotals()};updTotals();return r}
+const MATS=[["ΑΝΕΜ/ΡΑΣ 16W/60 ΕΒΜ TRANS 220V (MOTER)","ΤΕΜΑΧΙΟ"],["ΣΙΛΙΚΟΝΗ ΑΚΡΥΛΙΚΗ ΛΕΥΚΗ 280ml, WURTH ...","ΤΕΜΑΧΙΟ"],["ΚΑΛΩΔΙΟ 3#1.5 ΗΛΕΚΤΡΟΛΟΓΙΚΟ ΕΥΚΑΜΠΤΟ","ΜΕΤΡΑ"],["ΚΑΛΩΔΙΟ 3#2.5 ΗΛΕΚΤΡΟΛΟΓΙΚΟ ΕΥΚΑΜΠΤΟ","ΜΕΤΡΑ"],["ΚΑΛΩΔΙΟ 5#1.5 ΗΛΕΚΤΡΟΛΟΓΙΚΟ ΕΥΚΑΜΠΤΟ","ΜΕΤΡΑ"],["ΦΙΣ ΣΟΥΚΟ ΠΛΑΓΙΑΣ ΑΡΣΕΝΙΚΟ \"GERMANY 2\" ...","ΤΕΜΑΧΙΟ"],["ΟΥΠΑ Νο6 \"DIM\"","ΚΟΥΤΙ"],["ΟΥΠΑ Νο10 \"DIM\"","ΚΟΥΤΙ"],["ΑΠΟΧΕΤΕΥΣΗ Φ16 (30m) ACRTOOLS...","ΜΕΤΡΑ"],["ΣΩΛΗΝΑΣ ΑΠΟΧ/ΣΗΣ Φ16 (30m) \"ACRTOOLS\"","ΜΕΤΡΑ"],["Διακλάδωση αποχ/σης,Υ,Φ16-18-20 ACRTOOLS ...","ΤΕΜΑΧΙΟ"],["ΣΩΛΗΝΑΣ ΑΠΟΧ/ΣΗΣ Φ6 ΔΙΑΦΑΝΕΣ ACRTOOLS...","ΜΕΤΡΑ"],["ΒΙΔΕΣ & ΠΑΞΙΜΑΔΙΑ ,5/16\"(8) σε (100αδα) ACRTOOLS...","ΚΟΥΤΙ"],["ΣΤΡΙΦΟΝΙΑ ΓΑΛΒ 8#70 {Κ.100}","ΚΟΥΤΙ"],["ΡΟΔΕΛΕΣ ΓΑΛΒΑΝΙΖΕ 5/16 (100τμχ.),DIN9021,Φ8x25 ACRTOOLS...","ΚΟΥΤΙ"],["ΒΙΔΕΣ (100τμχ) γιά εγκατ.εσωτερ.μον.A/C,5#40mm,ACRTOOLS ...","ΤΕΜΑΧΙΟ"],["Κανάλια γιά a/c , 80#60 CLIMA-PLUS,ACRTOOLS...","ΜΕΤΡΑ"],["ΧΗΜΙΚΟ ΥΓΡΟ NATURALIZER (eq.FRESH FORCE) ΜΑΝΤΕΚ 1LT ,ΤΕΜ","ΤΕΜΑΧΙΟ"],["ΧΗΜΙΚΟ ΥΓΡΟ EVERBRITE ultra (1LT) ΤΕΜ...","ΤΕΜΑΧΙΟ"],["ΥΓΡΟ R32 (Kg) elt ...","ΚΙΛΑ"],["ΑΖΩΤΟ ΜΙΝΙ{περιεχομενο} \"τζ\"","ΚΥΒΙΚΟ ΜΕΤΡΟ"],["ΒΑΣΗ ΚΛΙΜ.ΣΠΑΣΤΗ ΑΣΠΡΗ ΜΕΓ.,15-24000 eco..ACRTOOLS","ΤΕΜΑΧΙΟ"],["ΒΑΣΗ ΚΛΙΜ/ΚΟΥ \"KWN\" ΣΠΑΣΤΗ,7-15000BTU ΜΙΚΡΗ","ΤΕΜΑΧΙΟ"],["ΒΑΣΗ ΚΛΙΜ.ΣΠΑΣΤΗ ΑΣΠΡΗ,9-15000 eco..ACRTOOLS","ΤΕΜΑΧΙΟ"],["ΒΑΣΗ ΔΑΠΕΔΟΥ ΠΛΑΣΤ. \"1set=2τμχ\",ACRTOOLS...","ΖΕΥΓΑΡΙ"],["Βάση ΔΑΠΕΔΟΥ 4τμχ. block,άσπρη,9898-045-08,VECAMco ...","ΣΕΤ"],["Χαλκ/λήνα μονωμ. 9#5/8\"(15m), ΡΕ, Talos","ΜΕΤΡΑ"],["Χαλκ/ληνα μονωμ. 9#1/4(30m), ΡΕ, Talos","ΜΕΤΡΑ"],["Χαλκ/λήνα μονωμ. 9#3/8(30m), ΡΕ, Talos","ΜΕΤΡΑ"],["Χαλκ/λήνα μονωμ. 9#1/2(30m),ΡΕ ,Τalos","ΜΕΤΡΑ"],["ΠΥΚΝΩΤΕΣ 80-100mf ΕΚΚΙΝΗΣΕΩΣ","ΤΕΜΑΧΙΟ"],["ΠΥΚΝΩΤΕΣ 100-125mf ΕΚΚΙΝΗΣΕΩΣ","ΤΕΜΑΧΙΟ"],["ΤΑΙΝΙΑ ΜΟΝΩΤΙΚΗ 19#20 ΛΕΥΚΗ,Wonder ...","ΤΕΜΑΧΙΟ"],["ΤΑΙΝΙΑ AIR-COND ΜΕ ΚΟΛΛΑ ,33m,ΛΕΥΚΗ \"ACRTOOLS\"","ΤΕΜΑΧΙΟ"],["ΤΑΙΝΙΑ air-cond Χ.ΚΟΛΛΑ \"ACRTOOLS\"...","ΤΕΜΑΧΙΟ"],["ΧΕΙΡ/ΡΙΟ ΑΣΥΡΜΑΤΟ ΚΤ-e02, 4000συχν.χειριστ., AIRCOND","ΤΕΜΑΧΙΟ"],["ΟΙΚΙΑΚΟ ΛΑΣΤΙΧΟ ΠΟΡΤΑΣ ΚΟΥΜΠΩΤΟ","ΤΕΜΑΧΙΟ"],["ΠΙΕΣΤΙΚΟΥ C10,C40 \"ΜΠΕΚ σπαστό 122°\" WIPCOOL ...","ΤΕΜΑΧΙΟ"],["ΑΝΤΛΙΑ ΑΠΟΡΡΙΨΗΣ ΣΥΜΠΥΚΝΩΜΑΤΩΝ MUTE WEDGE ACRTOOLS...","ΤΕΜΑΧΙΟ"],["ΣΙΦΩΝΙ ΑΠΟΧ/ΣΗΣ PT-25, ΟΡΙΖ. ΕΞΟΔΟΥ, WIPCOOL ...","ΤΕΜΑΧΙΟ"],["ΣΩΛΗΝΑΣ ΑΠΟΧ/ΣΗΣ Φ16 (25m) \"Acrtools\"","ΜΕΤΡΑ"],["ΥΓΡΟ R-290,PROPANE (400gr) με διάτρυση...","ΤΕΜΑΧΙΟ"],["ΒΑΝΑ γιά R290 με διάτρηση ACRTOOLS (d=13mm)... CT-339","ΤΕΜΑΧΙΟ"],["ΤΑΙΝΙΑ AIR-COND ΜΕ ΚΟΛΛΑ,ΛΕΥΚΗ,\"WONDER\" 20mx50mm..","ΤΕΜΑΧΙΟ"],["ΤΑΙΝΙΑ AIR-COND ΜΕ ΚΟΛΛΑ,μαυρη \"WONDER\" 20mx50mm..","ΤΕΜΑΧΙΟ"],["Διακλάδωση αποχ/σης Small , Υ ,Φ16-18-20 ACRTOOLS","ΤΕΜΑΧΙΟ"],["ΜΠΑΤΑΡ.ΑΛΚΑΛΙΚΗ.Πλακέ,9volt/6LR61/τμχ...ACRTOOLS","ΤΕΜΑΧΙΟ"],["Ταμπλέτα αρωμα SmellyJelly mini Orange Advanced eng...","ΤΕΜΑΧΙΟ"],["ΑΝΤΛΙΑ ΑΠΟΡΡΙΨΗΣ TANK 1lt,REDBOX-1L-S-LP,DIVERSITECH","ΤΕΜΑΧΙΟ"],["ΒΑΣΗ ΚΛΙΜ.ΣΠΑΣΤΗ ΑΣΠΡΗ, 18-26000 XL eco..ACRTOOLS","ΤΕΜΑΧΙΟ"],["ΡΟΚΑ 19/45 (50τμχ.) ΣΤΡΟΓΓΥΛΟ","ΤΕΜΑΧΙΟ"],["Γραμμή Υγρού / Γραμμή Αερίου 1/4\" | 3/8\"",""],["Γραμμή Υγρού / Γραμμή Αερίου1/4\" | 1/2\"",""],["Καλώδια Εντολών 4x1.0 No x mm²",""]];
+const matUnit=n=>{const k=mnorm(n);const x=MATS.find(a=>mnorm(a[0])===k);return x?x[1]:''};
 function addMat(){
   const el=document.createElement('div');el.className='line mat';
-  const [w1,m]=field('Υλικό','text','wide');
+  const [w1,m]=field('Υλικό','text','wide',{placeholder:'Γράψε ή πάτα ▾ για λίστα'});
   const [w2,c]=field('Κωδικός','text','');
   const [w3,q]=field('Ποσότητα','text','',{inputMode:'decimal'});
-  const [w4,d]=field('Ημερομηνία','date','wide',{value:$('date').value||today()});
   const foot=document.createElement('div');foot.className='foot';const rm=document.createElement('button');rm.type='button';rm.className='rm';rm.textContent='Αφαίρεση';
-  foot.append(document.createElement('span'),rm);el.append(w1,w2,w3,w4,foot);$('mats').append(el);
-  const r={el,m,c,q,d};mats.push(r);rm.onclick=()=>{el.remove();mats.splice(mats.indexOf(r),1)};return r}
+  foot.append(document.createElement('span'),rm);el.append(w1,w2,w3,foot);$('mats').append(el);
+  const r={el,m,c,q};mats.push(r);
+  const upd=()=>{const u=matUnit(m.value);q.placeholder=u?('σε '+u):'';r.u=u};
+  PICK[m.id]={title:'Υλικό',groups:()=>[['ΥΛΙΚΑ',MATS.map(a=>a[0])]],after:upd};
+  makeCombo(m.id);m.setAttribute('autocapitalize','sentences');
+  rm.onclick=()=>{el.remove();mats.splice(mats.indexOf(r),1)};return r}
 $('addTask').onclick=()=>{const last=tasks[tasks.length-1];addTask(last?{n:last.n.value}:null)};
+function syncTaskDates(){const v=$('date').value;if(!v)return;tasks.forEach(r=>{if(!r.touched)r.d.value=v})}
+$('date').addEventListener('input',syncTaskDates);$('date').addEventListener('change',syncTaskDates);
 $('addMat').onclick=()=>addMat().m.focus();
 addTask();addMat();
 
@@ -592,8 +614,10 @@ function buildSheet(d){
   const c=company,lg=c.logo?'<img src="'+c.logo+'" alt="">':'<span class="ini" style="color:'+c.color+'">'+esc(c.name)+'</span>';
   const tRows=d.tasks.map(r=>'<tr><td>'+grDate(r.d)+'</td><td>'+esc(r.n)+'</td><td>'+esc(r.t1)+'</td><td>'+esc(r.t2)+'</td><td>'+(r.c?hhmm(r.c.tot):'')+'</td></tr>');
   while(tRows.length<3)tRows.push('<tr><td></td><td></td><td></td><td></td><td></td></tr>');
-  const mRows=d.mats.map(r=>'<tr><td>'+grDate(r.d)+'</td><td class="l">'+esc(r.m)+'</td><td>'+esc(r.c)+'</td><td>'+esc(r.q)+'</td></tr>');
-  while(mRows.length<4)mRows.push('<tr><td>……/……/……</td><td></td><td></td><td></td></tr>');
+  const mRows=d.mats.map(r=>'<tr><td class="l">'+esc(r.m)+'</td><td>'+esc(r.c)+'</td><td>'+esc(r.q+(r.u&&r.q&&/^[\d.,\s]+$/.test(r.q)?' '+r.u:''))+'</td></tr>');
+  while(mRows.length<4)mRows.push('<tr><td></td><td></td><td></td></tr>');
+  const hSum=d.tasks.reduce((a,r)=>a+(r.c?r.c.tot:0),0);
+  if(hSum)tRows.push('<tr><td colspan="4" style="text-align:right;font-weight:700">ΣΥΝΟΛΟ ΩΡΩΝ ΠΑΡΟΥΣΙΑΣ / TOTAL HOURS</td><td style="font-weight:700">'+hhmm(hSum)+'</td></tr>');
   $('sheet').innerHTML=
    '<div class="top"><div class="lg">'+lg+'</div><div class="tt"><b>ΔΕΛΤΙΟ ΕΡΓΑΣΙΩΝ</b><span>ΔΕ '+grDate(d.vdate)+'</span></div></div>'+
    '<table class="info"><tr><td class="k">Πελάτης / Client</td><td>'+esc(d.client)+'</td></tr><tr><td class="k">Διεύθυνση / Address</td><td>'+esc(d.addr)+'</td></tr><tr><td class="k">Εταιρεία / Company</td><td>'+esc(c.name)+'</td></tr>'+(d.kind?'<tr><td class="k">Είδος εργασίας / Type of work</td><td><b>'+kindText(d)+'</b></td></tr>':'')+'</table>'+
@@ -606,8 +630,8 @@ function buildSheet(d){
    '<table class="grid"><colgroup><col style="width:14%"><col style="width:21%"><col style="width:22%"><col style="width:22%"><col style="width:21%"></colgroup>'+
    '<tr><th>Ημερ/νία / Date</th><th>ΑΡ. ΠΡΟΣΩΠΙΚΟΥ / STAFF</th><th>ΩΡΑ ΕΝΑΡΞΗΣ / ARRIVAL TIME</th><th>ΩΡΑ ΛΗΞΗΣ / ENDING TIME</th><th>ΣΥΝΟΛΟ ΩΡΩΝ / TOTAL HOURS</th></tr>'+tRows.join('')+'</table>'+
    '<div class="bar" style="margin-top:10px">ΥΛΙΚΑ / MATERIALS</div>'+
-   '<table class="grid"><colgroup><col style="width:14%"><col style="width:52%"><col style="width:17%"><col style="width:17%"></colgroup>'+
-   '<tr><th>Ημερ/νία/Date</th><th>ΥΛΙΚΑ ΠΟΥ ΧΡΗΣΙΜΟΠΟΙΗΘΗΚΑΝ / MATERIALS USED</th><th>ΚΩΔΙΚΟΣ / CODE</th><th>ΠΟΣΟΤΗΤΑ / QUANTITY</th></tr>'+mRows.join('')+'</table>'+
+   '<table class="grid"><colgroup><col style="width:62%"><col style="width:18%"><col style="width:20%"></colgroup>'+
+   '<tr><th>ΥΛΙΚΑ ΠΟΥ ΧΡΗΣΙΜΟΠΟΙΗΘΗΚΑΝ / MATERIALS USED</th><th>ΚΩΔΙΚΟΣ / CODE</th><th>ΠΟΣΟΤΗΤΑ / QUANTITY</th></tr>'+mRows.join('')+'</table>'+
    '<div class="sign"><div><div class="ar">'+(d.sigC?'<img src="'+d.sigC+'" alt="">':'')+'</div><div class="ln">ΥΠΟΓΡΑΦΗ ΠΕΛΑΤΗ / CLIENT\'S SIGN'+(d.signer?'<br>'+esc(d.signer):'')+'</div></div>'+
    '<div><div class="ar">'+(d.sigT?'<img src="'+d.sigT+'" alt="">':'')+'</div><div class="ln">ΥΠΟΓΡΑΦΗ ΤΕΧΝΙΚΟΥ / TECHNICIAN\'S SIGN'+(d.tech?'<br>'+esc(d.tech):'')+'</div></div></div>'+
    (photos.length?'<div class="foot">Συνημμένες φωτογραφίες: '+photos.length+' (στις επόμενες σελίδες)</div>':'');
@@ -644,10 +668,10 @@ async function makePdf(d){
 function collect(){
   const d={};ids.forEach(i=>d[i]=$(i).value.trim());
   d.ppe=checked(PPE,'ppe');d.crit=checked(CRIT,'crit');
-  d.tasks=tasks.map(r=>({d:r.d.value,n:r.n.value.trim(),t1:r.t1.value,t2:r.t2.value,c:taskCalc(r)})).filter(r=>r.t1||r.t2);
+  d.tasks=tasks.map(r=>({d:r.d.value,n:r.n.value.trim(),t1:parseT(r.t1.value)||r.t1.value.trim(),t2:parseT(r.t2.value)||r.t2.value.trim(),c:taskCalc(r)})).filter(r=>r.t1||r.t2);
   /* ημερομηνία επίσκεψης: το πεδίο «Ημερομηνία» του δελτίου */
   d.vdate=d.date;
-  d.mats=mats.map(r=>({d:r.d.value,m:r.m.value.trim(),c:r.c.value.trim(),q:r.q.value.trim()})).filter(r=>r.m||r.c||r.q);
+  d.mats=mats.map(r=>({m:r.m.value.trim(),c:r.c.value.trim(),q:r.q.value.trim(),u:matUnit(r.m.value)})).filter(r=>r.m||r.c||r.q);
   d.kind=mKey?kind:'';d.mtype=d.kind==='maint'?mType:'';d.maint=d.kind==='maint'&&mType?MAINT[mKey][mType]:null;d.mdone=mDone.slice();
   d.simple=$('simple').checked;d.sigC=padC.img();d.sigT=padT.img();return d}
 
